@@ -519,9 +519,18 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
         <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper, marginBottom: 12 }}>Your order</div>
         <div style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 16, marginBottom: 28 }}>
           {cartItems.map((i) => (
-            <div key={i.product.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper, marginBottom: 8 }}>
+            <div key={i.product.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper, marginBottom: 8 }}>
               <span>{i.qty} &times; {i.product.name}</span>
-              <span style={{ color: THEME.paperMuted, whiteSpace: "nowrap" }}>{formatMoney(i.product.price * i.qty)}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ color: THEME.paperMuted, whiteSpace: "nowrap" }}>{formatMoney(i.product.price * i.qty)}</span>
+                <button
+                  onClick={() => setCart((c) => { const next = { ...c }; delete next[i.product.id]; return next; })}
+                  title="Remove item"
+                  style={{ background: "none", border: "none", color: THEME.danger, cursor: "pointer", fontSize: 15, padding: 0, lineHeight: 1 }}
+                >
+                  &times;
+                </button>
+              </div>
             </div>
           ))}
           <div style={{ borderTop: `1px solid ${THEME.border}`, marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between", fontFamily: FONT_SANS, fontWeight: 600, fontSize: 14, color: THEME.paper }}>
@@ -1982,7 +1991,7 @@ function FamilyView({ config, orders, saveConfig, saveOrders, goHome, goMenu, go
   );
 }
 
-function NavBar({ route, goHome, goShop, goCart, cart = {}, products = [], cartCount = 0 }) {
+function NavBar({ route, goHome, goShop, goCart, cart = {}, setCart, products = [], cartCount = 0 }) {
   const [cartOpen, setCartOpen] = useState(false);
   const cartItems = Object.entries(cart)
     .filter(([, qty]) => qty > 0)
@@ -2053,9 +2062,18 @@ function NavBar({ route, goHome, goShop, goCart, cart = {}, products = [], cartC
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
                   {cartItems.map((i) => (
-                    <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>
+                    <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>
                       <span>{i.qty} &times; {i.name}</span>
-                      <span style={{ color: THEME.paperMuted, whiteSpace: "nowrap" }}>{formatMoney(i.price * i.qty)}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ color: THEME.paperMuted, whiteSpace: "nowrap" }}>{formatMoney(i.price * i.qty)}</span>
+                        <button
+                          onClick={() => setCart((c) => { const next = { ...c }; delete next[i.id]; return next; })}
+                          title="Remove item"
+                          style={{ background: "none", border: "none", color: THEME.danger, cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}
+                        >
+                          &times;
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <div style={{ borderTop: `1px solid ${THEME.border}`, marginTop: 4, paddingTop: 8, display: "flex", justifyContent: "space-between", fontFamily: FONT_SANS, fontWeight: 600, fontSize: 13, color: THEME.paper }}>
@@ -2303,6 +2321,7 @@ export default function KimchiShop() {
             goShop={() => setRoute("menu")}
             goCart={() => { setCheckoutSignal((s) => s + 1); setRoute("customer"); }}
             cart={cart}
+            setCart={setCart}
             products={config.products}
             cartCount={cartCount}
           />
