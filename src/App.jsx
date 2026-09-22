@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Component } from "react";
 import { ShoppingCart, Leaf, Heart, Soup, Users } from "lucide-react";
 import { subscribeAuth, logIn, logOut, resetPassword } from "./auth.js";
 import { submitOrderRemote } from "./submitOrder.js";
+import { uploadImage } from "./imageUpload.js";
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -1372,7 +1373,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
 }
 
 function FolderIcon({ icon, size = 20 }) {
-  if (icon && icon.startsWith("data:image")) {
+  if (icon && (icon.startsWith("data:image") || icon.startsWith("http"))) {
     return <img src={icon} alt="" style={{ width: size, height: size, borderRadius: 4, objectFit: "cover", display: "inline-block", verticalAlign: "middle" }} />;
   }
   return <span style={{ fontSize: size }}>{icon || "\uD83D\uDCC1"}</span>;
@@ -1390,6 +1391,7 @@ function InventoryTab({ config, saveConfig }) {
   const [itemSort, setItemSort] = useState("recent");
   const [folderSort, setFolderSort] = useState("recent");
   const [folderItemSort, setFolderItemSort] = useState({});
+  const [uploadError, setUploadError] = useState(null);
   const timer = useRef(null);
 
   useEffect(() => setLocal(config.products), [config.products]);
@@ -1436,11 +1438,16 @@ function InventoryTab({ config, saveConfig }) {
     commit(local, folders.map((f) => (f.id === folderId ? { ...f, bannerImage: null } : f)));
   };
 
-  const handleBannerUpload = (folderId, file) => {
+  const handleBannerUpload = async (folderId, file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateFolderBanner(folderId, reader.result);
-    reader.readAsDataURL(file);
+    setUploadError(null);
+    try {
+      const url = await uploadImage(file, "folder-banners");
+      updateFolderBanner(folderId, url);
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      setUploadError("Couldn't upload that image. Please try again.");
+    }
   };
 
   const toggleFolderExpand = (folderId) => {
@@ -1471,11 +1478,16 @@ function InventoryTab({ config, saveConfig }) {
     commit(local, nextFolders);
   };
 
-  const handleImageUpload = (id, file) => {
+  const handleImageUpload = async (id, file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateField(id, "imageUrl", reader.result);
-    reader.readAsDataURL(file);
+    setUploadError(null);
+    try {
+      const url = await uploadImage(file, "products");
+      updateField(id, "imageUrl", url);
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      setUploadError("Couldn't upload that image. Please try again.");
+    }
   };
 
   const FolderDropdown = ({ p }) => {
@@ -1597,12 +1609,18 @@ function InventoryTab({ config, saveConfig }) {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = () => { updateFolderIcon(folder.id, reader.result); setEmojiPicker(null); };
-                    reader.readAsDataURL(file);
+                    setUploadError(null);
+                    try {
+                      const url = await uploadImage(file, "folder-icons");
+                      updateFolderIcon(folder.id, url);
+                      setEmojiPicker(null);
+                    } catch (err) {
+                      console.error("Image upload failed:", err);
+                      setUploadError("Couldn't upload that image. Please try again.");
+                    }
                   }}
                   style={{ display: "none" }}
                 />
@@ -1635,6 +1653,11 @@ function InventoryTab({ config, saveConfig }) {
 
   return (
     <div>
+      {uploadError && (
+        <div style={{ background: THEME.redBg, border: `1px solid ${THEME.red}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontFamily: FONT_SANS, fontSize: 13, color: THEME.redText }}>
+          {uploadError}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
         <Button onClick={openCreateMenu}>+ Create New Menu</Button>
       </div>
@@ -2301,7 +2324,7 @@ function MenuPage({ config, goOrder, goHome, goFamily }) {
 
         <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px 56px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 28, width: "100%" }}>
           {publishedFolders.map((folder) => {
-            const isImage = folder.icon && folder.icon.startsWith("data:image");
+            const isImage = folder.icon && (folder.icon.startsWith("data:image") || folder.icon.startsWith("http"));
             if (folder.bannerImage) {
               return (
                 <div key={folder.id} style={{ background: "#ECF3E9", borderRadius: 20, padding: "26px 26px 32px", position: "relative", textAlign: "center" }}>
