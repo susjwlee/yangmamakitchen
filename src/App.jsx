@@ -891,6 +891,25 @@ const STATUS_TONE = { new: "danger", preparing: "neutral", ready: "success", com
 
 function OrdersTab({ orders, saveOrders, config, saveConfig }) {
   const [confirmDeleteOrderId, setConfirmDeleteOrderId] = useState(null);
+  const [printMode, setPrintMode] = useState("detailed");
+  const [printTrigger, setPrintTrigger] = useState(0);
+
+  useEffect(() => {
+    if (printTrigger === 0) return; // skip on initial mount
+    const t = setTimeout(() => {
+      try {
+        window.print();
+      } catch (err) {
+        console.error("Print failed:", err);
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [printTrigger]);
+
+  const triggerPrint = (mode) => {
+    setPrintMode(mode);
+    setPrintTrigger((n) => n + 1);
+  };
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [editForm, setEditForm] = useState(null);
 
@@ -1002,27 +1021,30 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
   }
 
   return (
-    <div>
+    <div className={printMode === "simple" ? "print-mode-simple" : "print-mode-detailed"}>
       <style>{`
         @media print {
           body * { visibility: hidden; }
-          .print-orders-table, .print-orders-table * { visibility: visible; }
-          .print-orders-table { display: table !important; position: absolute; top: 0; left: 0; width: 100%; }
+          .print-mode-detailed .print-orders-table, .print-mode-detailed .print-orders-table * { visibility: visible; }
+          .print-mode-detailed .print-orders-table { display: table !important; position: absolute; top: 0; left: 0; width: 100%; }
+          .print-mode-simple .print-simple-table, .print-mode-simple .print-simple-table * { visibility: visible; }
+          .print-mode-simple .print-simple-table { display: table !important; position: absolute; top: 0; left: 0; width: 100%; }
         }
       `}</style>
 
       <div style={{ marginBottom: 16, textAlign: "right" }}>
         <Button
           variant="secondary"
-          onClick={() => {
-            try {
-              window.print();
-            } catch (err) {
-              console.error("Print failed:", err);
-            }
-          }}
+          onClick={() => triggerPrint("detailed")}
+          style={{ marginRight: 8 }}
         >
           &#128424; Print Orders
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => triggerPrint("simple")}
+        >
+          &#128424; Print Simple List
         </Button>
         <div style={{ fontFamily: FONT_SANS, fontSize: 11, color: THEME.paperFaint, marginTop: 4 }}>
           If nothing happens, press Ctrl+P (Windows) or Cmd+P (Mac) instead.
@@ -1117,6 +1139,51 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       </table>
       </div>
 
+      {(() => {
+        const activeOrders = orders.filter((o) => o.status !== "cancelled");
+        const totalOrders = activeOrders.length;
+        const totalRevenue = activeOrders.reduce((sum, o) => sum + o.total, 0);
+        const itemTotals = {};
+        activeOrders.forEach((o) => {
+          o.items.forEach((i) => {
+            itemTotals[i.name] = (itemTotals[i.name] || 0) + i.qty;
+          });
+        });
+        const itemEntries = Object.entries(itemTotals).sort((a, b) => b[1] - a[1]);
+
+        return (
+          <div style={{ background: THEME.surfaceRaised, border: `1px solid ${THEME.borderStrong}`, borderRadius: 14, padding: 16, marginTop: 20 }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 16, color: THEME.paper, marginBottom: 12 }}>Summary</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: itemEntries.length > 0 ? 14 : 0 }}>
+              <div>
+                <div style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperFaint }}>Total orders</div>
+                <div style={{ fontFamily: FONT_VOICE, fontWeight: 700, fontSize: 20, color: THEME.paper }}>{totalOrders}</div>
+              </div>
+              <div>
+                <div style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperFaint }}>Total revenue</div>
+                <div style={{ fontFamily: FONT_VOICE, fontWeight: 700, fontSize: 20, color: THEME.paper }}>{formatMoney(totalRevenue)}</div>
+              </div>
+            </div>
+            {itemEntries.length > 0 && (
+              <div>
+                <div style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperFaint, marginBottom: 6 }}>Quantity by item</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {itemEntries.map(([name, qty]) => (
+                    <div key={name} style={{ display: "flex", justifyContent: "space-between", fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>
+                      <span>{name}</span>
+                      <span style={{ fontWeight: 600 }}>{qty}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ fontFamily: FONT_SANS, fontSize: 11, color: THEME.paperFaint, marginTop: 12 }}>
+              Cancelled orders are excluded from these totals.
+            </div>
+          </div>
+        );
+      })()}
+
       <table className="print-orders-table" style={{ display: "none", width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#000" }}>
         <thead>
           <tr>
@@ -1142,6 +1209,27 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
               <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{PAYMENT_OPTIONS.find((p) => p.value === o.paymentMethod)?.label || o.paymentMethod || ""}</td>
               <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{STATUS_LABEL[o.status]}</td>
               <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.paid ? "Yes" : "No"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <table className="print-simple-table" style={{ display: "none", width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
+        <thead>
+          <tr>
+            {["Customer", "Qty", "Items Ordered"].map((h) => (
+              <th key={h} style={{ border: "1px solid #000", padding: "8px 10px", textAlign: "left", background: "#eee" }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((o) => (
+            <tr key={o.id}>
+              <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.customerName}</td>
+              <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.reduce((sum, i) => sum + i.qty, 0)}</td>
+              <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.map((i) => `${i.qty}\u00d7 ${i.name}`).join(", ")}</td>
             </tr>
           ))}
         </tbody>
