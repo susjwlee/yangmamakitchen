@@ -2270,7 +2270,7 @@ function HomePage({ goShop, goFamily }) {
           <div style={{ flex: "1 1 320px" }}>
             <div style={{ fontFamily: FONT_VOICE, fontWeight: 700, fontSize: 21, color: THEME.green, marginBottom: 14, letterSpacing: 0.5 }}>A WORD FROM THE MAMAS</div>
             <p style={{ fontFamily: FONT_SANS, fontSize: 14.5, color: THEME.paper, lineHeight: 1.7, margin: 0 }}>
-              Thank you for always enjoying our homemade food, it's our pride and joy to feed so many friends of our children! We will work to deliver the best that we can and we hope that you continue to always enjoy a full hardy meal. Thank you for allowing us to be a part of your kitchen!
+              Thank you for always enjoying our homemade food, it's our pride and joy to feed so many friends of our children! We will work to deliver the best that we can and we hope that you continue to always enjoy a full hearty meal. Thank you for allowing us to be a part of your kitchen!
             </p>
           </div>
           <div style={{ flex: "1 1 260px", textAlign: "center" }}>
