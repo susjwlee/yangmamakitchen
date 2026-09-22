@@ -231,7 +231,7 @@ function useShopStorage() {
             }]
           : [];
         try {
-          await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 5000);
+          await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 15000);
         } catch {}
       } else if (cfg && cfg.folders) {
         let changed = false;
@@ -246,7 +246,7 @@ function useShopStorage() {
         });
         if (changed) {
           try {
-            await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 5000);
+            await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 15000);
           } catch {}
         }
       }
@@ -259,7 +259,7 @@ function useShopStorage() {
         });
         if (noteChanged) {
           try {
-            await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 5000);
+            await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 15000);
           } catch {}
         }
       }
@@ -274,7 +274,7 @@ function useShopStorage() {
     if (!cfg && confirmedMissing) {
       cfg = seedConfig;
       try {
-        await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 5000);
+        await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 15000);
       } catch {
         setError("Storage isn't available right now, so changes won't be saved. Try reloading.");
       }
@@ -302,20 +302,24 @@ function useShopStorage() {
   }, []);
 
   const saveConfig = async (next) => {
+    const previous = config;
     setConfig(next);
     try {
-      await withTimeout(window.storage.set("shop-config", JSON.stringify(next), true), 5000);
+      await withTimeout(window.storage.set("shop-config", JSON.stringify(next), true), 15000);
     } catch {
-      setError("Could not save changes. Try again.");
+      setConfig(previous);
+      setError("Could not save changes — your last edit was not saved. Please try again.");
     }
   };
 
   const saveOrders = async (next) => {
+    const previous = orders;
     setOrders(next);
     try {
-      await withTimeout(window.storage.set("orders", JSON.stringify(next), true), 5000);
+      await withTimeout(window.storage.set("orders", JSON.stringify(next), true), 15000);
     } catch {
-      setError("Could not save changes. Try again.");
+      setOrders(previous);
+      setError("Could not save changes — your last edit was not saved. Please try again.");
     }
   };
 
