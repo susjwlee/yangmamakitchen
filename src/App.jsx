@@ -198,14 +198,14 @@ function openSms(phone, message) {
 }
 
 function withTimeout(promise, ms) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let done = false;
     const timer = setTimeout(() => {
-      if (!done) { done = true; resolve(null); }
+      if (!done) { done = true; reject(new Error("__TIMEOUT__")); }
     }, ms);
     promise.then(
       (v) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } },
-      () => { if (!done) { done = true; clearTimeout(timer); resolve(null); } }
+      (err) => { if (!done) { done = true; clearTimeout(timer); reject(err); } }
     );
   });
 }
@@ -217,8 +217,9 @@ function useShopStorage() {
 
   const loadAll = async () => {
     let cfg = null;
+    let confirmedMissing = false;
     try {
-      const res = await withTimeout(window.storage.get("shop-config", true), 5000);
+      const res = await withTimeout(window.storage.get("shop-config", true), 15000);
       cfg = res ? JSON.parse(res.value) : null;
       if (cfg && !cfg.folders) {
         cfg.folders = cfg.products && cfg.products.length > 0
@@ -262,22 +263,33 @@ function useShopStorage() {
           } catch {}
         }
       }
-    } catch {
+    } catch (err) {
       cfg = null;
+      // Only treat this as "there's genuinely no data yet" (a brand-new setup)
+      // if the read specifically confirmed the document doesn't exist. Any
+      // other failure — a slow connection, a dropped request, a timeout —
+      // must NOT fall through to overwriting real data with defaults below.
+      confirmedMissing = err && typeof err.message === "string" && err.message.startsWith("Key not found");
     }
-    if (!cfg) {
+    if (!cfg && confirmedMissing) {
       cfg = seedConfig;
       try {
         await withTimeout(window.storage.set("shop-config", JSON.stringify(cfg), true), 5000);
       } catch {
         setError("Storage isn't available right now, so changes won't be saved. Try reloading.");
       }
+    } else if (!cfg) {
+      // A real failure (e.g., a slow/dropped connection) — don't touch
+      // Firestore at all. Let the person know and let them retry, instead
+      // of silently replacing their real menu/settings with defaults.
+      setError("Couldn't load your shop data — check your connection and try reloading the page.");
+      return;
     }
     setConfig(cfg);
 
     let ord = [];
     try {
-      const res2 = await withTimeout(window.storage.get("orders", true), 5000);
+      const res2 = await withTimeout(window.storage.get("orders", true), 15000);
       ord = res2 ? JSON.parse(res2.value) : [];
     } catch {
       ord = [];
@@ -1894,7 +1906,7 @@ function SettingsTab({ config, saveConfig, setActiveFolderId, goCustomer }) {
   const commit = (next) => {
     setLocal(next);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => saveConfig(next), 500);
+    timer.current = setTimeout(() => saveConfig({ ...config, ...next }), 500);
   };
 
   const updateFolderSetting = (folderId, field, value) => {
@@ -1906,7 +1918,7 @@ function SettingsTab({ config, saveConfig, setActiveFolderId, goCustomer }) {
 
   const handlePublish = (folderId) => {
     clearTimeout(timer.current);
-    saveConfig(local);
+    saveConfig({ ...config, ...local });
     if (setActiveFolderId) setActiveFolderId(folderId);
     setPublishedId(folderId);
     setTimeout(() => setPublishedId((cur) => (cur === folderId ? null : cur)), 3000);
