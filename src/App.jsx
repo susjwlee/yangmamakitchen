@@ -423,6 +423,8 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
   const [form, setForm] = useState({ name: "", phone: "", paymentTiming: "", paymentMethod: "", fulfillment: "pickup", address: "", notes: "", deliverySlots: [] });
   const [formErrors, setFormErrors] = useState({});
   const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [otherAvailability, setOtherAvailability] = useState(false);
+  const [otherAvailabilityText, setOtherAvailabilityText] = useState("");
 
   const activeFolder = folderId ? (config.folders || []).find((f) => f.id === folderId) : null;
   const products = activeFolder ? config.products.filter((p) => activeFolder.productIds.includes(p.id)) : config.products;
@@ -456,7 +458,11 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
     if (!form.paymentMethod) errs.paymentMethod = "Choose a payment method";
     if (form.fulfillment === "delivery" && !form.address.trim()) errs.address = "Enter a delivery address";
     if (form.fulfillment === "pickup" && !form.notes.trim()) errs.notes = "Let us know where and when you'd like to pick up";
-    if (form.fulfillment === "delivery" && form.deliverySlots.length === 0) errs.deliverySlots = "Pick at least one delivery timeframe";
+    if (form.fulfillment === "delivery" && otherAvailability && !otherAvailabilityText.trim()) {
+      errs.deliverySlots = "Let us know what times could work for you";
+    } else if (form.fulfillment === "delivery" && !otherAvailability && form.deliverySlots.length === 0) {
+      errs.deliverySlots = "Pick at least one delivery timeframe";
+    }
     if (cartItems.some((i) => i.qty > MAX_QTY_PER_ITEM)) {
       errs.household = `You can order up to ${MAX_QTY_PER_ITEM} of each item. Adjust your quantities and try again.`;
     }
@@ -483,7 +489,9 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
       fulfillment: form.fulfillment,
       address: form.address.trim(),
       notes: form.fulfillment === "pickup" ? form.notes.trim() : "",
-      deliverySlots: form.fulfillment === "delivery" ? form.deliverySlots : [],
+      deliverySlots: form.fulfillment === "delivery"
+        ? (otherAvailability ? [`Other: ${otherAvailabilityText.trim()}`] : form.deliverySlots)
+        : [],
       items: cartItems.map((i) => ({ productId: i.product.id, name: i.product.name, qty: i.qty, price: i.product.price })),
       total,
       status: "new",
@@ -624,10 +632,11 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
               {DELIVERY_SLOTS.map((slot) => {
                 const checked = form.deliverySlots.includes(slot);
                 return (
-                  <label key={slot} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper, cursor: "pointer" }}>
+                  <label key={slot} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper, cursor: otherAvailability ? "not-allowed" : "pointer", opacity: otherAvailability ? 0.5 : 1 }}>
                     <input
                       type="checkbox"
                       checked={checked}
+                      disabled={otherAvailability}
                       onChange={() => {
                         const next = checked ? form.deliverySlots.filter((s) => s !== slot) : [...form.deliverySlots, slot];
                         setForm({ ...form, deliverySlots: next });
@@ -637,6 +646,26 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
                   </label>
                 );
               })}
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={otherAvailability}
+                  onChange={() => {
+                    const next = !otherAvailability;
+                    setOtherAvailability(next);
+                    if (next) setForm({ ...form, deliverySlots: [] });
+                  }}
+                />
+                Can't do any of the above
+              </label>
+              {otherAvailability && (
+                <textarea
+                  value={otherAvailabilityText}
+                  onChange={(e) => setOtherAvailabilityText(e.target.value)}
+                  placeholder="Let us know what times could work for you"
+                  style={{ ...inputStyle, minHeight: 60, resize: "vertical" }}
+                />
+              )}
             </div>
           </Field>
         )}
