@@ -425,6 +425,7 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [otherAvailability, setOtherAvailability] = useState(false);
   const [otherAvailabilityText, setOtherAvailabilityText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const activeFolder = folderId ? (config.folders || []).find((f) => f.id === folderId) : null;
   const products = activeFolder ? config.products.filter((p) => activeFolder.productIds.includes(p.id)) : config.products;
@@ -478,7 +479,9 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
 
   const submitOrder = async () => {
     if (closed) return;
+    if (isSubmitting) return; // already placing an order — ignore extra clicks/taps
     if (!validate()) return;
+    setIsSubmitting(true);
     const order = {
       id: uid(),
       createdAt: Date.now(),
@@ -501,6 +504,7 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
       await submitOrderRemote(order, folderId);
     } catch (err) {
       setFormErrors((prev) => ({ ...prev, household: err.message || "Couldn't place your order. Please try again." }));
+      setIsSubmitting(false);
       return;
     }
     const nextProducts = products.map((p) => {
@@ -683,7 +687,9 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
           </div>
         )}
 
-        <Button onClick={submitOrder} style={{ width: "100%" }}>Place order</Button>
+        <Button onClick={submitOrder} disabled={isSubmitting} style={{ width: "100%" }}>
+          {isSubmitting ? "Placing order\u2026" : "Place order"}
+        </Button>
       </div>
     );
   }
