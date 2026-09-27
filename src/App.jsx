@@ -60,6 +60,18 @@ const FONT_SANS = "'Work Sans', sans-serif";
 
 const EMOJI_OPTIONS = ["📁", "🍽️", "🥘", "🌶️", "🥬", "🥗", "🥕", "🧄", "🍱", "🥢", "🍯", "🍡", "🎃", "🍂", "🌿", "❄️", "🌸", "☀️", "🎉", "⭐", "✨", "🔥", "🆕", "📌", "🛒", "💚", "❤️", "🐑", "🧡", "🍜"];
 const MAX_QTY_PER_ITEM = 2;
+
+// For the "Print Simple List" grand totals: combo items like "Bundle
+// Package" don't exist as their own thing to prep — they're really just
+// 1 of each item listed here. If a new combo item is ever added with a
+// different mix, this mapping needs a matching entry (by exact product
+// name) or it'll just show up as its own line instead of being split.
+const BUNDLE_COMPOSITION = {
+  "Bundle Package": [
+    { name: "Cabbage Kimchi", qty: 1 },
+    { name: "Diced Radish Kimchi", qty: 1 },
+  ],
+};
 const MAX_TOTAL_ITEMS_PER_ORDER = 2;
 const PAYMENT_TIMING_OPTIONS = [
   { value: "now", label: "Pay now" },
@@ -1285,6 +1297,39 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          {(() => {
+            const totals = {};
+            orders.forEach((o) => {
+              o.items.forEach((i) => {
+                const breakdown = BUNDLE_COMPOSITION[i.name];
+                if (breakdown) {
+                  breakdown.forEach((component) => {
+                    totals[component.name] = (totals[component.name] || 0) + i.qty * component.qty;
+                  });
+                } else {
+                  totals[i.name] = (totals[i.name] || 0) + i.qty;
+                }
+              });
+            });
+            const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+            return (
+              <>
+                <tr>
+                  <td colSpan={3} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", background: "#eee" }}>
+                    Grand Total
+                  </td>
+                </tr>
+                {entries.map(([name, qty]) => (
+                  <tr key={name}>
+                    <td colSpan={2} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{name}</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{qty}</td>
+                  </tr>
+                ))}
+              </>
+            );
+          })()}
+        </tfoot>
       </table>
 
       {confirmDeleteOrderId && (() => {
