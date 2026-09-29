@@ -957,6 +957,13 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
   const [confirmDeleteOrderId, setConfirmDeleteOrderId] = useState(null);
   const [printMode, setPrintMode] = useState("detailed");
   const [printTrigger, setPrintTrigger] = useState(0);
+  const [sortMode, setSortMode] = useState("recent");
+
+  const sortedOrders = [...orders].sort((a, b) => {
+    if (sortMode === "name") return (a.customerName || "").localeCompare(b.customerName || "");
+    if (sortMode === "paid") return (a.paid === b.paid) ? 0 : (a.paid ? 1 : -1);
+    return (b.createdAt || 0) - (a.createdAt || 0); // "recent" (default)
+  });
 
   useEffect(() => {
     if (printTrigger === 0) return; // skip on initial mount
@@ -1096,22 +1103,32 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         }
       `}</style>
 
-      <div style={{ marginBottom: 16, textAlign: "right" }}>
-        <Button
-          variant="secondary"
-          onClick={() => triggerPrint("detailed")}
-          style={{ marginRight: 8 }}
-        >
-          &#128424; Print Orders
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => triggerPrint("simple")}
-        >
-          &#128424; Print Simple List
-        </Button>
-        <div style={{ fontFamily: FONT_SANS, fontSize: 11, color: THEME.paperFaint, marginTop: 4 }}>
-          If nothing happens, press Ctrl+P (Windows) or Cmd+P (Mac) instead.
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <label style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperMuted, marginRight: 8 }}>Sort by</label>
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "6px 10px", fontSize: 13 }}>
+            <option value="recent">Most recent</option>
+            <option value="name">Name A-Z</option>
+            <option value="paid">Paid (not marked paid on top)</option>
+          </select>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <Button
+            variant="secondary"
+            onClick={() => triggerPrint("detailed")}
+            style={{ marginRight: 8 }}
+          >
+            &#128424; Print Orders
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => triggerPrint("simple")}
+          >
+            &#128424; Print Simple List
+          </Button>
+          <div style={{ fontFamily: FONT_SANS, fontSize: 11, color: THEME.paperFaint, marginTop: 4 }}>
+            If nothing happens, press Ctrl+P (Windows) or Cmd+P (Mac) instead.
+          </div>
         </div>
       </div>
 
@@ -1127,7 +1144,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tr>
         </thead>
         <tbody>
-          {orders.map((o, idx) => (
+          {sortedOrders.map((o, idx) => (
             <tr key={o.id} style={{ background: idx % 2 === 0 ? THEME.surface : "transparent", borderBottom: `1px solid ${THEME.border}` }}>
               <td style={{ padding: "10px", verticalAlign: "top", minWidth: 150 }}>
                 <div style={{ fontWeight: 500, color: THEME.paper, whiteSpace: "nowrap" }}>{o.customerName}</div>
@@ -1259,7 +1276,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tr>
         </thead>
         <tbody>
-          {orders.map((o) => (
+          {sortedOrders.map((o) => (
             <tr key={o.id}>
               <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.customerName}</td>
               <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.phone}</td>
@@ -1289,7 +1306,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tr>
         </thead>
         <tbody>
-          {orders.map((o) => (
+          {sortedOrders.map((o) => (
             <tr key={o.id}>
               <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.customerName}</td>
               <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.reduce((sum, i) => sum + i.qty, 0)}</td>
