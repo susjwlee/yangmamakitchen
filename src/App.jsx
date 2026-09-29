@@ -1293,6 +1293,34 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
             </tr>
           ))}
         </tbody>
+        <tfoot>
+          {(() => {
+            const activeOrders = orders.filter((o) => o.status !== "cancelled");
+            const totals = {};
+            activeOrders.forEach((o) => {
+              const method = o.paymentMethod
+                ? (o.paymentMethod.charAt(0).toUpperCase() + o.paymentMethod.slice(1))
+                : "Unspecified";
+              totals[method] = (totals[method] || 0) + o.total;
+            });
+            const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+            return (
+              <>
+                <tr>
+                  <td colSpan={12} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", background: "#eee" }}>
+                    Totals by Payment Method
+                  </td>
+                </tr>
+                {entries.map(([method, amount]) => (
+                  <tr key={method}>
+                    <td colSpan={11} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{method} Total</td>
+                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{formatMoney(amount)}</td>
+                  </tr>
+                ))}
+              </>
+            );
+          })()}
+        </tfoot>
       </table>
 
       <table className="print-simple-table" style={{ display: "none", width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
