@@ -1096,10 +1096,12 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       <style>{`
         @media print {
           body * { visibility: hidden; }
-          .print-mode-detailed .print-orders-table, .print-mode-detailed .print-orders-table * { visibility: visible; }
-          .print-mode-detailed .print-orders-table { display: table !important; position: absolute; top: 0; left: 0; width: 100%; }
-          .print-mode-simple .print-simple-table, .print-mode-simple .print-simple-table * { visibility: visible; }
-          .print-mode-simple .print-simple-table { display: table !important; position: absolute; top: 0; left: 0; width: 100%; }
+          .print-mode-detailed .print-detailed-wrap, .print-mode-detailed .print-detailed-wrap * { visibility: visible; }
+          .print-mode-detailed .print-detailed-wrap { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+          .print-mode-detailed .print-detailed-wrap table { display: table !important; width: 100%; margin-bottom: 28px; }
+          .print-mode-simple .print-simple-wrap, .print-mode-simple .print-simple-wrap * { visibility: visible; }
+          .print-mode-simple .print-simple-wrap { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
+          .print-mode-simple .print-simple-wrap table { display: table !important; width: 100%; margin-bottom: 28px; }
         }
       `}</style>
 
@@ -1265,125 +1267,135 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         );
       })()}
 
-      <table className="print-orders-table" style={{ display: "none", width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#000" }}>
-        <thead>
-          <tr>
-            {["Customer", "Phone", "Fulfillment", "Address", "Delivery Slots", "Items", "Notes", "Total", "Payment Timing", "Payment Method", "Status", "Paid"].map((h) => (
-              <th key={h} style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "left", background: "#eee" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedOrders.map((o) => (
-            <tr key={o.id}>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.customerName}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.phone}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.fulfillment === "delivery" ? "Delivery" : "Pickup"}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.fulfillment === "delivery" ? (o.address || "") : ""}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.deliverySlots && o.deliverySlots.length > 0 ? o.deliverySlots.join(", ") : ""}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.items.map((i) => `${i.qty}\u00d7 ${i.name}`).join(", ")}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.notes || ""}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{formatMoney(o.total)}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{PAYMENT_TIMING_OPTIONS.find((p) => p.value === o.paymentTiming)?.label || o.paymentTiming || ""}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{PAYMENT_OPTIONS.find((p) => p.value === o.paymentMethod)?.label || o.paymentMethod || ""}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{STATUS_LABEL[o.status]}</td>
-              <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.paid ? "Yes" : "No"}</td>
+      <div className="print-detailed-wrap" style={{ display: "none" }}>
+        <table className="print-orders-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#000" }}>
+          <thead>
+            <tr>
+              {["Customer", "Phone", "Fulfillment", "Address", "Delivery Slots", "Items", "Notes", "Total", "Payment Timing", "Payment Method", "Status", "Paid"].map((h) => (
+                <th key={h} style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "left", background: "#eee" }}>
+                  {h}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          {(() => {
-            const activeOrders = orders.filter((o) => o.status !== "cancelled");
-            const totals = {};
-            activeOrders.forEach((o) => {
-              const method = o.paymentMethod
-                ? (o.paymentMethod.charAt(0).toUpperCase() + o.paymentMethod.slice(1))
-                : "Unspecified";
-              totals[method] = (totals[method] || 0) + o.total;
-            });
-            const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-            return (
-              <>
-                <tr>
-                  <td colSpan={12} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", background: "#eee" }}>
-                    Totals by Payment Method
-                  </td>
-                </tr>
-                {entries.map(([method, amount]) => (
-                  <tr key={method}>
-                    <td colSpan={11} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{method} Total</td>
-                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{formatMoney(amount)}</td>
-                  </tr>
-                ))}
-              </>
-            );
-          })()}
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {sortedOrders.map((o) => (
+              <tr key={o.id}>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.customerName}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.phone}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.fulfillment === "delivery" ? "Delivery" : "Pickup"}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.fulfillment === "delivery" ? (o.address || "") : ""}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.deliverySlots && o.deliverySlots.length > 0 ? o.deliverySlots.join(", ") : ""}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.items.map((i) => `${i.qty}\u00d7 ${i.name}`).join(", ")}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.notes || ""}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{formatMoney(o.total)}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{PAYMENT_TIMING_OPTIONS.find((p) => p.value === o.paymentTiming)?.label || o.paymentTiming || ""}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{PAYMENT_OPTIONS.find((p) => p.value === o.paymentMethod)?.label || o.paymentMethod || ""}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{STATUS_LABEL[o.status]}</td>
+                <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{o.paid ? "Yes" : "No"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-      <table className="print-simple-table" style={{ display: "none", width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
-        <thead>
-          <tr>
-            {["Customer", "Qty", "Items Ordered"].map((h) => (
-              <th key={h} style={{ border: "1px solid #000", padding: "8px 10px", textAlign: "left", background: "#eee" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedOrders.map((o) => (
-            <tr key={o.id}>
-              <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.customerName}</td>
-              <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.reduce((sum, i) => sum + i.qty, 0)}</td>
-              <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.map((i) => `${i.qty}\u00d7 ${i.name}`).join(", ")}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          {(() => {
-            const totals = {};
-            orders.forEach((o) => {
-              o.items.forEach((i) => {
-                const product = (config.products || []).find((p) => p.id === i.productId);
-                const comboOf = product && product.comboOf && product.comboOf.length > 0 ? product.comboOf : null;
-                const legacyBreakdown = !comboOf ? BUNDLE_COMPOSITION[i.name] : null;
-                if (comboOf) {
-                  comboOf.forEach((component) => {
-                    const componentProduct = (config.products || []).find((p) => p.id === component.productId);
-                    const name = componentProduct ? componentProduct.name : "(deleted item)";
-                    totals[name] = (totals[name] || 0) + i.qty * component.qty;
-                  });
-                } else if (legacyBreakdown) {
-                  legacyBreakdown.forEach((component) => {
-                    totals[component.name] = (totals[component.name] || 0) + i.qty * component.qty;
-                  });
-                } else {
-                  totals[i.name] = (totals[i.name] || 0) + i.qty;
-                }
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 11, color: "#000" }}>
+          <tbody>
+            {(() => {
+              const activeOrders = orders.filter((o) => o.status !== "cancelled");
+              const totals = {};
+              activeOrders.forEach((o) => {
+                const method = o.paymentMethod
+                  ? (o.paymentMethod.charAt(0).toUpperCase() + o.paymentMethod.slice(1))
+                  : "Unspecified";
+                totals[method] = (totals[method] || 0) + o.total;
               });
-            });
-            const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-            return (
-              <>
-                <tr>
-                  <td colSpan={3} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", background: "#eee" }}>
-                    Grand Total
-                  </td>
-                </tr>
-                {entries.map(([name, qty]) => (
-                  <tr key={name}>
-                    <td colSpan={2} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{name}</td>
-                    <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{qty}</td>
+              const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+              return (
+                <>
+                  <tr>
+                    <td colSpan={2} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", background: "#eee" }}>
+                      Totals by Payment Method
+                    </td>
                   </tr>
-                ))}
-              </>
-            );
-          })()}
-        </tfoot>
-      </table>
+                  {entries.map(([method, amount]) => (
+                    <tr key={method}>
+                      <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{method} Total</td>
+                      <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{formatMoney(amount)}</td>
+                    </tr>
+                  ))}
+                </>
+              );
+            })()}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="print-simple-wrap" style={{ display: "none" }}>
+        <table className="print-simple-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
+          <thead>
+            <tr>
+              {["Customer", "Qty", "Items Ordered"].map((h) => (
+                <th key={h} style={{ border: "1px solid #000", padding: "8px 10px", textAlign: "left", background: "#eee" }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedOrders.map((o) => (
+              <tr key={o.id}>
+                <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.customerName}</td>
+                <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.reduce((sum, i) => sum + i.qty, 0)}</td>
+                <td style={{ border: "1px solid #000", padding: "8px 10px" }}>{o.items.map((i) => `${i.qty}\u00d7 ${i.name}`).join(", ")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
+          <tbody>
+            {(() => {
+              const totals = {};
+              orders.forEach((o) => {
+                o.items.forEach((i) => {
+                  const product = (config.products || []).find((p) => p.id === i.productId);
+                  const comboOf = product && product.comboOf && product.comboOf.length > 0 ? product.comboOf : null;
+                  const legacyBreakdown = !comboOf ? BUNDLE_COMPOSITION[i.name] : null;
+                  if (comboOf) {
+                    comboOf.forEach((component) => {
+                      const componentProduct = (config.products || []).find((p) => p.id === component.productId);
+                      const name = componentProduct ? componentProduct.name : "(deleted item)";
+                      totals[name] = (totals[name] || 0) + i.qty * component.qty;
+                    });
+                  } else if (legacyBreakdown) {
+                    legacyBreakdown.forEach((component) => {
+                      totals[component.name] = (totals[component.name] || 0) + i.qty * component.qty;
+                    });
+                  } else {
+                    totals[i.name] = (totals[i.name] || 0) + i.qty;
+                  }
+                });
+              });
+              const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+              return (
+                <>
+                  <tr>
+                    <td colSpan={2} style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold", background: "#eee" }}>
+                      Grand Total
+                    </td>
+                  </tr>
+                  {entries.map(([name, qty]) => (
+                    <tr key={name}>
+                      <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{name}</td>
+                      <td style={{ border: "1px solid #000", padding: "8px 10px", fontWeight: "bold" }}>{qty}</td>
+                    </tr>
+                  ))}
+                </>
+              );
+            })()}
+          </tbody>
+        </table>
+      </div>
 
       {confirmDeleteOrderId && (() => {
         const order = orders.find((o) => o.id === confirmDeleteOrderId);
