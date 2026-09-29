@@ -1347,9 +1347,17 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
             const totals = {};
             orders.forEach((o) => {
               o.items.forEach((i) => {
-                const breakdown = BUNDLE_COMPOSITION[i.name];
-                if (breakdown) {
-                  breakdown.forEach((component) => {
+                const product = (config.products || []).find((p) => p.id === i.productId);
+                const comboOf = product && product.comboOf && product.comboOf.length > 0 ? product.comboOf : null;
+                const legacyBreakdown = !comboOf ? BUNDLE_COMPOSITION[i.name] : null;
+                if (comboOf) {
+                  comboOf.forEach((component) => {
+                    const componentProduct = (config.products || []).find((p) => p.id === component.productId);
+                    const name = componentProduct ? componentProduct.name : "(deleted item)";
+                    totals[name] = (totals[name] || 0) + i.qty * component.qty;
+                  });
+                } else if (legacyBreakdown) {
+                  legacyBreakdown.forEach((component) => {
                     totals[component.name] = (totals[component.name] || 0) + i.qty * component.qty;
                   });
                 } else {
@@ -1517,6 +1525,11 @@ function InventoryTab({ config, saveConfig }) {
   const [folderSort, setFolderSort] = useState("recent");
   const [folderItemSort, setFolderItemSort] = useState({});
   const [uploadError, setUploadError] = useState(null);
+  const [showCreateCombo, setShowCreateCombo] = useState(false);
+  const [newComboName, setNewComboName] = useState("");
+  const [newComboUnit, setNewComboUnit] = useState("bundle");
+  const [newComboPrice, setNewComboPrice] = useState("");
+  const [newComboQuantities, setNewComboQuantities] = useState({});
   const timer = useRef(null);
 
   useEffect(() => setLocal(config.products), [config.products]);
@@ -1535,6 +1548,35 @@ function InventoryTab({ config, saveConfig }) {
 
   const addProduct = () => {
     commit([...local, { id: uid(), name: "New kimchi", description: "", unit: "16 oz jar", price: 12, stock: 0 }], folders);
+  };
+
+  const openCreateCombo = () => {
+    setNewComboName("");
+    setNewComboUnit("bundle");
+    setNewComboPrice("");
+    setNewComboQuantities({});
+    setShowCreateCombo(true);
+  };
+
+  const confirmCreateCombo = () => {
+    const comboOf = Object.entries(newComboQuantities)
+      .filter(([, qty]) => qty > 0)
+      .map(([productId, qty]) => ({ productId, qty }));
+    if (!newComboName.trim() || comboOf.length === 0) return;
+    const newCombo = {
+      id: uid(),
+      name: newComboName.trim(),
+      description: comboOf.map((c) => {
+        const p = local.find((item) => item.id === c.productId);
+        return `${c.qty}\u00d7 ${p ? p.name : "item"}`;
+      }).join(" + "),
+      unit: newComboUnit.trim() || "bundle",
+      price: Number(newComboPrice) || 0,
+      stock: 0,
+      comboOf,
+    };
+    commit([...local, newCombo], folders);
+    setShowCreateCombo(false);
   };
 
   const removeProduct = (id) => {
@@ -1791,9 +1833,14 @@ function InventoryTab({ config, saveConfig }) {
         <div style={{ fontFamily: FONT_VOICE, fontSize: 15, color: THEME.paperFaint }}>Items</div>
         <SortSelect value={itemSort} onChange={setItemSort} />
       </div>
-      <Button variant="secondary" onClick={addProduct} style={{ fontSize: 13, padding: "8px 14px", marginBottom: 12 }}>
-        + Add item
-      </Button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <Button variant="secondary" onClick={addProduct} style={{ fontSize: 13, padding: "8px 14px" }}>
+          + Add item
+        </Button>
+        <Button variant="secondary" onClick={openCreateCombo} style={{ fontSize: 13, padding: "8px 14px" }}>
+          + Add Combo
+        </Button>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginBottom: 28 }}>
         {sortedItems.map((p) => (
           <div key={p.id} style={{ background: THEME.surface, border: `1px solid ${THEME.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -1824,6 +1871,11 @@ function InventoryTab({ config, saveConfig }) {
               </button>
             </div>
             <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {p.comboOf && p.comboOf.length > 0 && (
+                <span style={{ alignSelf: "flex-start", fontFamily: FONT_SANS, fontSize: 10, fontWeight: 600, color: THEME.greenText, background: THEME.greenBg, padding: "2px 6px", borderRadius: 6 }}>
+                  COMBO
+                </span>
+              )}
               <input value={p.name} onChange={(e) => updateField(p.id, "name", e.target.value)} style={{ ...inputStyle, fontFamily: FONT_VOICE, fontSize: 12, padding: "5px 6px" }} />
               <input
                 value={p.description}
@@ -2014,6 +2066,72 @@ function InventoryTab({ config, saveConfig }) {
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <Button variant="secondary" onClick={() => setShowCreateMenu(false)}>Cancel</Button>
               <Button onClick={confirmCreateMenu}>Create</Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {showCreateCombo && (
+        <>
+          <div onClick={() => setShowCreateCombo(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 420px)",
+            maxHeight: "85vh", overflowY: "auto", background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
+          }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 20, color: THEME.paper, marginBottom: 4 }}>Create Combo</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paperFaint, marginBottom: 16 }}>
+              A combo is a single menu item made of a set amount of your existing items \u2014 like a bundle. Customers order it as one thing, but it'll automatically split back into its parts on the "Print Simple List" grand totals, so you know exactly how much of each item to actually prep.
+            </div>
+
+            <Field label="Combo name">
+              <input autoFocus value={newComboName} onChange={(e) => setNewComboName(e.target.value)} placeholder="e.g. Bundle Package" style={inputStyle} />
+            </Field>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <Field label="Price">
+                  <input type="number" step="0.01" value={newComboPrice} onChange={(e) => setNewComboPrice(e.target.value)} placeholder="0.00" style={inputStyle} />
+                </Field>
+              </div>
+              <div style={{ flex: 1 }}>
+                <Field label="Unit">
+                  <input value={newComboUnit} onChange={(e) => setNewComboUnit(e.target.value)} placeholder="bundle" style={inputStyle} />
+                </Field>
+              </div>
+            </div>
+
+            <div style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paperMuted, marginBottom: 6 }}>Made up of</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+              {local.filter((p) => !p.comboOf || p.comboOf.length === 0).map((p) => {
+                const qty = newComboQuantities[p.id] || 0;
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, background: THEME.surfaceRaised, borderRadius: 8, padding: "8px 10px" }}>
+                    <div style={{ flex: 1, fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>{p.name}</div>
+                    <button
+                      onClick={() => setNewComboQuantities({ ...newComboQuantities, [p.id]: Math.max(0, qty - 1) })}
+                      style={{ width: 24, height: 24, borderRadius: 6, border: `1px solid ${THEME.border}`, background: THEME.surface, cursor: "pointer" }}
+                    >
+                      &minus;
+                    </button>
+                    <div style={{ width: 20, textAlign: "center", fontFamily: FONT_SANS, fontSize: 13 }}>{qty}</div>
+                    <button
+                      onClick={() => setNewComboQuantities({ ...newComboQuantities, [p.id]: qty + 1 })}
+                      style={{ width: 24, height: 24, borderRadius: 6, border: `1px solid ${THEME.border}`, background: THEME.surface, cursor: "pointer" }}
+                    >
+                      +
+                    </button>
+                  </div>
+                );
+              })}
+              {local.filter((p) => !p.comboOf || p.comboOf.length === 0).length === 0 && (
+                <div style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paperFaint }}>
+                  Add some regular items first \u2014 there's nothing to combine yet.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setShowCreateCombo(false)}>Cancel</Button>
+              <Button onClick={confirmCreateCombo}>Create Combo</Button>
             </div>
           </div>
         </>
