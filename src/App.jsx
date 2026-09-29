@@ -1542,6 +1542,7 @@ function InventoryTab({ config, saveConfig }) {
   const [newComboUnit, setNewComboUnit] = useState("bundle");
   const [newComboPrice, setNewComboPrice] = useState("");
   const [newComboQuantities, setNewComboQuantities] = useState({});
+  const [newComboImageUrl, setNewComboImageUrl] = useState(null);
   const timer = useRef(null);
 
   useEffect(() => setLocal(config.products), [config.products]);
@@ -1567,7 +1568,20 @@ function InventoryTab({ config, saveConfig }) {
     setNewComboUnit("bundle");
     setNewComboPrice("");
     setNewComboQuantities({});
+    setNewComboImageUrl(null);
     setShowCreateCombo(true);
+  };
+
+  const handleComboImageUpload = async (file) => {
+    if (!file) return;
+    setUploadError(null);
+    try {
+      const url = await uploadImage(file, "products");
+      setNewComboImageUrl(url);
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      setUploadError("Couldn't upload that image. Please try again.");
+    }
   };
 
   const confirmCreateCombo = () => {
@@ -1585,6 +1599,7 @@ function InventoryTab({ config, saveConfig }) {
       unit: newComboUnit.trim() || "bundle",
       price: Number(newComboPrice) || 0,
       stock: 0,
+      imageUrl: newComboImageUrl,
       comboOf,
     };
     commit([...local, newCombo], folders);
@@ -2094,6 +2109,24 @@ function InventoryTab({ config, saveConfig }) {
             <div style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paperFaint, marginBottom: 16 }}>
               A combo is a single menu item made of a set amount of your existing items \u2014 like a bundle. Customers order it as one thing, but it'll automatically split back into its parts on the "Print Simple List" grand totals, so you know exactly how much of each item to actually prep.
             </div>
+
+            <Field label="Picture (optional)">
+              <label style={{ cursor: "pointer", display: "block" }}>
+                {newComboImageUrl ? (
+                  <img src={newComboImageUrl} alt="" style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8, display: "block" }} />
+                ) : (
+                  <div style={{ width: "100%", height: 90, background: THEME.surfaceRaised, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: THEME.paperFaint }}>
+                    &#128247;
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleComboImageUpload(e.target.files && e.target.files[0])}
+                  style={{ display: "none" }}
+                />
+              </label>
+            </Field>
 
             <Field label="Combo name">
               <input autoFocus value={newComboName} onChange={(e) => setNewComboName(e.target.value)} placeholder="e.g. Bundle Package" style={inputStyle} />
