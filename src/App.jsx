@@ -1125,10 +1125,10 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           body * { visibility: hidden; }
           .print-mode-detailed .print-detailed-wrap, .print-mode-detailed .print-detailed-wrap * { visibility: visible; }
           .print-mode-detailed .print-detailed-wrap { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
-          .print-mode-detailed .print-detailed-wrap table { display: table !important; width: 100%; margin-bottom: 28px; }
+          .print-mode-detailed .print-detailed-wrap table { display: table !important; margin-bottom: 28px; }
           .print-mode-simple .print-simple-wrap, .print-mode-simple .print-simple-wrap * { visibility: visible; }
           .print-mode-simple .print-simple-wrap { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
-          .print-mode-simple .print-simple-wrap table { display: table !important; width: 100%; margin-bottom: 28px; }
+          .print-mode-simple .print-simple-wrap table { display: table !important; margin-bottom: 28px; }
         }
       `}</style>
 
@@ -1330,7 +1330,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       })()}
 
       <div className="print-detailed-wrap" style={{ display: "none" }}>
-        <table className="print-orders-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 16, color: "#000" }}>
+        <table className="print-orders-table" style={{ borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 22, color: "#000" }}>
           <thead>
             <tr>
               {["Customer", "Phone", "Fulfillment", "Address", "Delivery Slots", "Items", "Notes", "Total", "Payment Timing", "Payment Method", "Status", "Paid"].map((h) => (
@@ -1360,7 +1360,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tbody>
         </table>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 16, color: "#000" }}>
+        <table style={{ borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 22, color: "#000" }}>
           <tbody>
             {(() => {
               const activeOrders = orders.filter((o) => o.status !== "cancelled" && !o.archiveFolderId);
@@ -1393,7 +1393,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       </div>
 
       <div className="print-simple-wrap" style={{ display: "none" }}>
-        <table className="print-simple-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 18, color: "#000" }}>
+        <table className="print-simple-table" style={{ borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 24, color: "#000" }}>
           <thead>
             <tr>
               {["Customer", "Qty", "Items Ordered"].map((h) => (
@@ -1414,7 +1414,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tbody>
         </table>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 18, color: "#000" }}>
+        <table style={{ borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 24, color: "#000" }}>
           <tbody>
             {(() => {
               const totals = {};
