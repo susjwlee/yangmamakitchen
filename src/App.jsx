@@ -958,12 +958,43 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
   const [printMode, setPrintMode] = useState("detailed");
   const [printTrigger, setPrintTrigger] = useState(0);
   const [sortMode, setSortMode] = useState("recent");
+  const [view, setView] = useState("active"); // "active" | "archive"
+  const [showCreateArchiveFolder, setShowCreateArchiveFolder] = useState(false);
+  const [newArchiveFolderName, setNewArchiveFolderName] = useState("");
+  const [archivePickerForOrderId, setArchivePickerForOrderId] = useState(null);
+  const [expandedArchiveFolderId, setExpandedArchiveFolderId] = useState(null);
+  const [confirmDeleteArchiveFolderId, setConfirmDeleteArchiveFolderId] = useState(null);
 
-  const sortedOrders = [...orders].sort((a, b) => {
+  const archiveFolders = config.archiveFolders || [];
+  const activeOrdersOnly = orders.filter((o) => !o.archiveFolderId);
+
+  const sortedOrders = [...activeOrdersOnly].sort((a, b) => {
     if (sortMode === "name") return (a.customerName || "").localeCompare(b.customerName || "");
     if (sortMode === "paid") return (a.paid === b.paid) ? 0 : (a.paid ? 1 : -1);
     return (b.createdAt || 0) - (a.createdAt || 0); // "recent" (default)
   });
+
+  const archiveOrder = async (orderId, folderId) => {
+    await saveOrders(orders.map((o) => (o.id === orderId ? { ...o, archiveFolderId: folderId } : o)));
+    setArchivePickerForOrderId(null);
+  };
+
+  const unarchiveOrder = async (orderId) => {
+    await saveOrders(orders.map((o) => (o.id === orderId ? { ...o, archiveFolderId: null } : o)));
+  };
+
+  const createArchiveFolder = async () => {
+    if (!newArchiveFolderName.trim()) return;
+    const newFolder = { id: uid(), name: newArchiveFolderName.trim() };
+    await saveConfig({ ...config, archiveFolders: [...archiveFolders, newFolder] });
+    setNewArchiveFolderName("");
+    setShowCreateArchiveFolder(false);
+  };
+
+  const deleteArchiveFolder = async (folderId) => {
+    await saveConfig({ ...config, archiveFolders: archiveFolders.filter((f) => f.id !== folderId) });
+    setConfirmDeleteArchiveFolderId(null);
+  };
 
   useEffect(() => {
     if (printTrigger === 0) return; // skip on initial mount
@@ -1087,10 +1118,6 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
     cancelEdit();
   };
 
-  if (orders.length === 0) {
-    return <div style={{ fontFamily: FONT_SANS, color: THEME.paperFaint, fontSize: 14, padding: "40px 0", textAlign: "center" }}>No orders yet. New orders will show up here.</div>;
-  }
-
   return (
     <div className={printMode === "simple" ? "print-mode-simple" : "print-mode-detailed"}>
       <style>{`
@@ -1105,6 +1132,35 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         }
       `}</style>
 
+      <div style={{ display: "flex", gap: 20, marginBottom: 20, borderBottom: `1px solid ${THEME.border}` }}>
+        <button
+          onClick={() => setView("active")}
+          style={{
+            background: "none", border: "none", cursor: "pointer", padding: "0 0 10px 0", fontFamily: FONT_SANS, fontSize: 14,
+            fontWeight: view === "active" ? 600 : 400, color: view === "active" ? THEME.paper : THEME.paperMuted,
+            borderBottom: view === "active" ? `2px solid ${THEME.red}` : "2px solid transparent",
+          }}
+        >
+          Active Orders
+        </button>
+        <button
+          onClick={() => setView("archive")}
+          style={{
+            background: "none", border: "none", cursor: "pointer", padding: "0 0 10px 0", fontFamily: FONT_SANS, fontSize: 14,
+            fontWeight: view === "archive" ? 600 : 400, color: view === "archive" ? THEME.paper : THEME.paperMuted,
+            borderBottom: view === "archive" ? `2px solid ${THEME.red}` : "2px solid transparent",
+          }}
+        >
+          Archive ({orders.filter((o) => o.archiveFolderId).length})
+        </button>
+      </div>
+
+      {view === "active" && activeOrdersOnly.length === 0 && (
+        <div style={{ fontFamily: FONT_SANS, color: THEME.paperFaint, fontSize: 14, padding: "40px 0", textAlign: "center" }}>No active orders. New orders will show up here.</div>
+      )}
+
+      {view === "active" && activeOrdersOnly.length > 0 && (
+      <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
         <div>
           <label style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperMuted, marginRight: 8 }}>Sort by</label>
@@ -1178,6 +1234,12 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
                     Edit
                   </button>
                   <button
+                    onClick={() => setArchivePickerForOrderId(o.id)}
+                    style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+                  >
+                    Archive
+                  </button>
+                  <button
                     onClick={() => setConfirmDeleteOrderId(o.id)}
                     title="Remove order"
                     style={{
@@ -1223,7 +1285,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       </div>
 
       {(() => {
-        const activeOrders = orders.filter((o) => o.status !== "cancelled");
+        const activeOrders = orders.filter((o) => o.status !== "cancelled" && !o.archiveFolderId);
         const totalOrders = activeOrders.length;
         const totalRevenue = activeOrders.reduce((sum, o) => sum + o.total, 0);
         const itemTotals = {};
@@ -1301,7 +1363,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 16, color: "#000" }}>
           <tbody>
             {(() => {
-              const activeOrders = orders.filter((o) => o.status !== "cancelled");
+              const activeOrders = orders.filter((o) => o.status !== "cancelled" && !o.archiveFolderId);
               const totals = {};
               activeOrders.forEach((o) => {
                 const method = o.paymentMethod
@@ -1356,7 +1418,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           <tbody>
             {(() => {
               const totals = {};
-              orders.forEach((o) => {
+              orders.filter((o) => !o.archiveFolderId).forEach((o) => {
                 o.items.forEach((i) => {
                   const product = (config.products || []).find((p) => p.id === i.productId);
                   const comboOf = product && product.comboOf && product.comboOf.length > 0 ? product.comboOf : null;
@@ -1509,6 +1571,189 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
               <Button onClick={saveEdit}>Save Changes</Button>
+            </div>
+          </div>
+        </>
+      )}
+      </>
+      )}
+
+      {view === "archive" && (
+        <div>
+          {!expandedArchiveFolderId ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+                <Button onClick={() => setShowCreateArchiveFolder(true)}>+ New Folder</Button>
+              </div>
+              {archiveFolders.length === 0 ? (
+                <div style={{ fontFamily: FONT_SANS, color: THEME.paperFaint, fontSize: 14, padding: "40px 0", textAlign: "center" }}>
+                  No archive folders yet. Create one to start archiving old orders.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+                  {archiveFolders.map((f) => {
+                    const count = orders.filter((o) => o.archiveFolderId === f.id).length;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setExpandedArchiveFolderId(f.id)}
+                        style={{
+                          textAlign: "left", background: THEME.surfaceRaised, border: `1px solid ${THEME.border}`, borderRadius: 12,
+                          padding: 16, cursor: "pointer", fontFamily: FONT_SANS,
+                        }}
+                      >
+                        <div style={{ fontSize: 22, marginBottom: 6 }}>&#128193;</div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: THEME.paper, marginBottom: 2 }}>{f.name}</div>
+                        <div style={{ fontSize: 12, color: THEME.paperFaint }}>{count} order{count === 1 ? "" : "s"}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (() => {
+            const folder = archiveFolders.find((f) => f.id === expandedArchiveFolderId);
+            const folderOrders = orders.filter((o) => o.archiveFolderId === expandedArchiveFolderId);
+            return (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <button
+                    onClick={() => setExpandedArchiveFolderId(null)}
+                    style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 13, cursor: "pointer", padding: 0 }}
+                  >
+                    &larr; Back to folders
+                  </button>
+                  <Button
+                    variant="danger"
+                    onClick={() => setConfirmDeleteArchiveFolderId(expandedArchiveFolderId)}
+                    style={{ fontSize: 12, padding: "5px 10px" }}
+                  >
+                    Delete Folder
+                  </Button>
+                </div>
+                <div style={{ fontFamily: FONT_VOICE, fontSize: 20, color: THEME.paper, marginBottom: 14 }}>{folder ? folder.name : ""}</div>
+                {folderOrders.length === 0 ? (
+                  <div style={{ fontFamily: FONT_SANS, color: THEME.paperFaint, fontSize: 14, padding: "20px 0" }}>No orders in this folder.</div>
+                ) : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${THEME.border}` }}>
+                          {["Customer", "Items", "Total", "Date", ""].map((h) => (
+                            <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperMuted }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {folderOrders.map((o) => (
+                          <tr key={o.id} style={{ borderBottom: `1px solid ${THEME.border}` }}>
+                            <td style={{ padding: "10px", fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>{o.customerName}</td>
+                            <td style={{ padding: "10px", fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>{o.items.map((i) => `${i.qty}\u00d7 ${i.name}`).join(", ")}</td>
+                            <td style={{ padding: "10px", fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>{formatMoney(o.total)}</td>
+                            <td style={{ padding: "10px", fontFamily: FONT_SANS, fontSize: 13, color: THEME.paperMuted }}>{o.createdAt ? formatDateTime(new Date(o.createdAt).toISOString()) : ""}</td>
+                            <td style={{ padding: "10px", textAlign: "right" }}>
+                              <button
+                                onClick={() => unarchiveOrder(o.id)}
+                                style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+                              >
+                                Unarchive
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {showCreateArchiveFolder && (
+        <>
+          <div onClick={() => setShowCreateArchiveFolder(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
+            background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
+          }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 14 }}>New Archive Folder</div>
+            <input
+              autoFocus
+              value={newArchiveFolderName}
+              onChange={(e) => setNewArchiveFolderName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") createArchiveFolder(); }}
+              placeholder="e.g. September 2026"
+              style={{ ...inputStyle, marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setShowCreateArchiveFolder(false)}>Cancel</Button>
+              <Button onClick={createArchiveFolder}>Create</Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {confirmDeleteArchiveFolderId && (() => {
+        const folder = archiveFolders.find((f) => f.id === confirmDeleteArchiveFolderId);
+        const count = orders.filter((o) => o.archiveFolderId === confirmDeleteArchiveFolderId).length;
+        return (
+          <>
+            <div onClick={() => setConfirmDeleteArchiveFolderId(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+            <div style={{
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
+              background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
+            }}>
+              <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 10 }}>Delete Folder?</div>
+              {count > 0 ? (
+                <div style={{ fontFamily: FONT_SANS, fontSize: 14, color: THEME.paperMuted, marginBottom: 18 }}>
+                  "{folder ? folder.name : ""}" still has {count} order{count === 1 ? "" : "s"} in it. Unarchive or move them first before deleting this folder.
+                </div>
+              ) : (
+                <div style={{ fontFamily: FONT_SANS, fontSize: 14, color: THEME.paperMuted, marginBottom: 18 }}>
+                  This will delete the empty folder "{folder ? folder.name : ""}". This can't be undone.
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <Button variant="secondary" onClick={() => setConfirmDeleteArchiveFolderId(null)}>{count > 0 ? "OK" : "Cancel"}</Button>
+                {count === 0 && <Button variant="danger" onClick={() => deleteArchiveFolder(confirmDeleteArchiveFolderId)}>Delete</Button>}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {archivePickerForOrderId && (
+        <>
+          <div onClick={() => setArchivePickerForOrderId(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
+            background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
+          }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 14 }}>Archive to which folder?</div>
+            {archiveFolders.length === 0 ? (
+              <div style={{ fontFamily: FONT_SANS, fontSize: 14, color: THEME.paperMuted, marginBottom: 18 }}>
+                You don't have any archive folders yet. Close this, switch to the Archive tab, and create one first.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+                {archiveFolders.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => archiveOrder(archivePickerForOrderId, f.id)}
+                    style={{
+                      textAlign: "left", background: THEME.surfaceRaised, border: `1px solid ${THEME.border}`, borderRadius: 8,
+                      padding: "10px 12px", cursor: "pointer", fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper,
+                    }}
+                  >
+                    &#128193; {f.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setArchivePickerForOrderId(null)}>Cancel</Button>
             </div>
           </div>
         </>
