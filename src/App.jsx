@@ -1268,7 +1268,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       })()}
 
       <div className="print-detailed-wrap" style={{ display: "none" }}>
-        <table className="print-orders-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
+        <table className="print-orders-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 16, color: "#000" }}>
           <thead>
             <tr>
               {["Customer", "Phone", "Fulfillment", "Address", "Delivery Slots", "Items", "Notes", "Total", "Payment Timing", "Payment Method", "Status", "Paid"].map((h) => (
@@ -1298,7 +1298,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tbody>
         </table>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 13, color: "#000" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 16, color: "#000" }}>
           <tbody>
             {(() => {
               const activeOrders = orders.filter((o) => o.status !== "cancelled");
@@ -1331,7 +1331,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
       </div>
 
       <div className="print-simple-wrap" style={{ display: "none" }}>
-        <table className="print-simple-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 14, color: "#000" }}>
+        <table className="print-simple-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 18, color: "#000" }}>
           <thead>
             <tr>
               {["Customer", "Qty", "Items Ordered"].map((h) => (
@@ -1352,7 +1352,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
           </tbody>
         </table>
 
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 14, color: "#000" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Arial, sans-serif", fontSize: 18, color: "#000" }}>
           <tbody>
             {(() => {
               const totals = {};
