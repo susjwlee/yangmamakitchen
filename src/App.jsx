@@ -961,9 +961,10 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
   const [view, setView] = useState("active"); // "active" | "archive"
   const [showCreateArchiveFolder, setShowCreateArchiveFolder] = useState(false);
   const [newArchiveFolderName, setNewArchiveFolderName] = useState("");
-  const [archivePickerForOrderId, setArchivePickerForOrderId] = useState(null);
+  const [archiveTargetIds, setArchiveTargetIds] = useState([]); // ids currently being archived (one row's Archive link, or a bulk selection)
   const [expandedArchiveFolderId, setExpandedArchiveFolderId] = useState(null);
   const [confirmDeleteArchiveFolderId, setConfirmDeleteArchiveFolderId] = useState(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
 
   const archiveFolders = config.archiveFolders || [];
   const activeOrdersOnly = orders.filter((o) => !o.archiveFolderId);
@@ -974,9 +975,24 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
     return (b.createdAt || 0) - (a.createdAt || 0); // "recent" (default)
   });
 
-  const archiveOrder = async (orderId, folderId) => {
-    await saveOrders(orders.map((o) => (o.id === orderId ? { ...o, archiveFolderId: folderId } : o)));
-    setArchivePickerForOrderId(null);
+  const toggleSelectOrder = (id) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedOrderIds((prev) =>
+      prev.size === sortedOrders.length ? new Set() : new Set(sortedOrders.map((o) => o.id))
+    );
+  };
+
+  const archiveOrders = async (ids, folderId) => {
+    await saveOrders(orders.map((o) => (ids.includes(o.id) ? { ...o, archiveFolderId: folderId } : o)));
+    setArchiveTargetIds([]);
+    setSelectedOrderIds(new Set());
   };
 
   const unarchiveOrder = async (orderId) => {
@@ -1190,10 +1206,32 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         </div>
       </div>
 
+      {selectedOrderIds.size > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: THEME.surfaceRaised, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
+          <span style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>{selectedOrderIds.size} selected</span>
+          <Button onClick={() => setArchiveTargetIds([...selectedOrderIds])} style={{ fontSize: 12, padding: "5px 10px" }}>
+            Archive Selected
+          </Button>
+          <button
+            onClick={() => setSelectedOrderIds(new Set())}
+            style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
       <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT_SANS, fontSize: 13 }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${THEME.borderStrong}` }}>
+            <th style={{ textAlign: "left", padding: "8px 10px" }}>
+              <input
+                type="checkbox"
+                checked={sortedOrders.length > 0 && selectedOrderIds.size === sortedOrders.length}
+                onChange={toggleSelectAll}
+              />
+            </th>
             {["Customer", "Items", "Notes", "Total", ""].map((h) => (
               <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: THEME.paperFaint, fontWeight: 600, whiteSpace: "nowrap" }}>
                 {h}
@@ -1204,6 +1242,9 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         <tbody>
           {sortedOrders.map((o, idx) => (
             <tr key={o.id} style={{ background: idx % 2 === 0 ? THEME.surface : "transparent", borderBottom: `1px solid ${THEME.border}` }}>
+              <td style={{ padding: "10px", verticalAlign: "top" }}>
+                <input type="checkbox" checked={selectedOrderIds.has(o.id)} onChange={() => toggleSelectOrder(o.id)} />
+              </td>
               <td style={{ padding: "10px", verticalAlign: "top", minWidth: 150 }}>
                 <div style={{ fontWeight: 500, color: THEME.paper, whiteSpace: "nowrap" }}>{o.customerName}</div>
                 <div style={{ fontSize: 12, color: THEME.paperMuted, whiteSpace: "nowrap" }}>{o.phone}</div>
@@ -1234,7 +1275,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
                     Edit
                   </button>
                   <button
-                    onClick={() => setArchivePickerForOrderId(o.id)}
+                    onClick={() => setArchiveTargetIds([o.id])}
                     style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 11, textDecoration: "underline", cursor: "pointer", padding: 0 }}
                   >
                     Archive
@@ -1724,9 +1765,9 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
         );
       })()}
 
-      {archivePickerForOrderId && (
+      {archiveTargetIds.length > 0 && (
         <>
-          <div onClick={() => setArchivePickerForOrderId(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div onClick={() => setArchiveTargetIds([])} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
           <div style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
             background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
@@ -1741,7 +1782,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
                 {archiveFolders.map((f) => (
                   <button
                     key={f.id}
-                    onClick={() => archiveOrder(archivePickerForOrderId, f.id)}
+                    onClick={() => archiveOrders(archiveTargetIds, f.id)}
                     style={{
                       textAlign: "left", background: THEME.surfaceRaised, border: `1px solid ${THEME.border}`, borderRadius: 8,
                       padding: "10px 12px", cursor: "pointer", fontFamily: FONT_SANS, fontSize: 14, color: THEME.paper,
@@ -1753,7 +1794,7 @@ function OrdersTab({ orders, saveOrders, config, saveConfig }) {
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={() => setArchivePickerForOrderId(null)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setArchiveTargetIds([])}>Cancel</Button>
             </div>
           </div>
         </>
