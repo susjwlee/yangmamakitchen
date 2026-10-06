@@ -178,6 +178,35 @@ function normalizePhone(phone) {
   return (phone || "").replace(/\D/g, "");
 }
 
+// Remembers a customer's details in THEIR OWN browser (not sent anywhere,
+// not tied to any account) so repeat orders from the same device/browser
+// can be pre-filled. Each customer's own device remembers only themselves.
+const RETURNING_CUSTOMER_KEY = "yangMamasReturningCustomer";
+
+function loadSavedCustomerInfo() {
+  try {
+    const raw = window.localStorage.getItem(RETURNING_CUSTOMER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCustomerInfo(info) {
+  try {
+    window.localStorage.setItem(RETURNING_CUSTOMER_KEY, JSON.stringify(info));
+  } catch {
+    // If localStorage is unavailable (e.g., private browsing), just skip —
+    // this is a convenience feature, never something checkout depends on.
+  }
+}
+
+function clearSavedCustomerInfo() {
+  try {
+    window.localStorage.removeItem(RETURNING_CUSTOMER_KEY);
+  } catch {}
+}
+
 function formatPhoneInput(value) {
   const digits = normalizePhone(value).slice(0, 10);
   const area = digits.slice(0, 3);
@@ -432,7 +461,14 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
   useEffect(() => {
     if (checkoutSignal > 0) setStage("checkout");
   }, [checkoutSignal]);
-  const [form, setForm] = useState({ name: "", phone: "", paymentTiming: "", paymentMethod: "", fulfillment: "pickup", address: "", notes: "", deliverySlots: [] });
+  const [form, setForm] = useState(() => {
+    const saved = loadSavedCustomerInfo();
+    return {
+      name: "", phone: "", paymentTiming: "", paymentMethod: "", fulfillment: "pickup", address: "", notes: "", deliverySlots: [],
+      ...(saved || {}),
+    };
+  });
+  const [usedSavedInfo, setUsedSavedInfo] = useState(() => !!loadSavedCustomerInfo());
   const [formErrors, setFormErrors] = useState({});
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [otherAvailability, setOtherAvailability] = useState(false);
@@ -524,6 +560,14 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
       return inCart > 0 ? { ...p, stock: Math.max(0, p.stock - inCart) } : p;
     });
     await saveConfig({ ...config, products: nextProducts });
+    saveCustomerInfo({
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      paymentTiming: form.paymentTiming,
+      paymentMethod: form.paymentMethod,
+      fulfillment: form.fulfillment,
+      address: form.address.trim(),
+    });
     setConfirmedOrder(order);
     setCart({});
     setStage("confirmed");
@@ -580,7 +624,23 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
           </div>
         </div>
 
-        <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper, marginBottom: 20 }}>Your details</div>
+        <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper, marginBottom: 4 }}>Your details</div>
+        {usedSavedInfo && (
+          <div style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperMuted, marginBottom: 16 }}>
+            We've filled this in from your last order on this device &mdash; feel free to update it.{" "}
+            <button
+              onClick={() => {
+                clearSavedCustomerInfo();
+                setForm({ name: "", phone: "", paymentTiming: "", paymentMethod: "", fulfillment: "pickup", address: "", notes: "", deliverySlots: [] });
+                setUsedSavedInfo(false);
+              }}
+              style={{ background: "none", border: "none", color: THEME.paperMuted, textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}
+            >
+              Not you? Clear it.
+            </button>
+          </div>
+        )}
+        {!usedSavedInfo && <div style={{ marginBottom: 16 }} />}
 
         <Field label="Name" error={formErrors.name}>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" style={inputStyle} />
