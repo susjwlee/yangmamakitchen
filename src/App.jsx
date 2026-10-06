@@ -2947,7 +2947,7 @@ function MenuPage({ config, goOrder, goHome, goFamily }) {
             );
           })}
 
-          <div style={{ background: "#ECF3E9", borderRadius: 20, padding: 16, textAlign: "center" }}>
+          <div style={{ background: "#ECF3E9", borderRadius: 20, padding: 16, textAlign: "center", maxWidth: 340, margin: "0 auto" }}>
             <img src={STAY_TUNED_IMAGE} alt="Stay tuned for the next drop" style={{ width: "100%", borderRadius: 14, display: "block" }} />
           </div>
         </div>
