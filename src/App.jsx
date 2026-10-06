@@ -2701,7 +2701,10 @@ function AddressBookTab({ config, saveConfig, orders }) {
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newAddress, setNewAddress] = useState("");
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteIds, setConfirmDeleteIds] = useState([]); // 1+ ids pending removal (single row, or bulk)
+  const [editingId, setEditingId] = useState(null); // id of the one row currently in edit mode
+  const [editDraft, setEditDraft] = useState({ name: "", phone: "", address: "" });
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const timer = useRef(null);
 
   useEffect(() => setLocal(config.addressBook || []), [config.addressBook]);
@@ -2712,13 +2715,24 @@ function AddressBookTab({ config, saveConfig, orders }) {
     timer.current = setTimeout(() => saveConfig({ ...config, addressBook: next }), 500);
   };
 
-  const updateEntry = (id, field, value) => {
-    commit(local.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
+  const startEdit = (entry) => {
+    setEditingId(entry.id);
+    setEditDraft({ name: entry.name || "", phone: entry.phone || "", address: entry.address || "" });
   };
 
-  const removeEntry = (id) => {
-    commit(local.filter((e) => e.id !== id));
-    setConfirmDeleteId(null);
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = () => {
+    commit(local.map((e) => (e.id === editingId ? { ...e, ...editDraft, isNew: false } : e)));
+    setEditingId(null);
+  };
+
+  const removeEntries = (ids) => {
+    commit(local.filter((e) => !ids.includes(e.id)));
+    setConfirmDeleteIds([]);
+    setSelectedIds(new Set());
   };
 
   const addEntry = () => {
@@ -2738,10 +2752,22 @@ function AddressBookTab({ config, saveConfig, orders }) {
       const key = normalizePhone(o.phone);
       if (!key || existingPhones.has(key) || seen.has(key)) return;
       seen.add(key);
-      imported.push({ id: uid(), name: o.customerName, phone: o.phone, address: o.address || "" });
+      imported.push({ id: uid(), name: o.customerName, phone: o.phone, address: o.address || "", isNew: true });
     });
     if (imported.length === 0) return;
     commit([...local, ...imported]);
+  };
+
+  const clearNewTags = () => {
+    commit(local.map((e) => (e.isNew ? { ...e, isNew: false } : e)));
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const filtered = local
@@ -2752,6 +2778,14 @@ function AddressBookTab({ config, saveConfig, orders }) {
     })
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === filtered.length ? new Set() : new Set(filtered.map((e) => e.id))
+    );
+  };
+
+  const anyNew = local.some((e) => e.isNew);
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
@@ -2761,7 +2795,12 @@ function AddressBookTab({ config, saveConfig, orders }) {
           placeholder="Search by name, phone, or address"
           style={{ ...inputStyle, maxWidth: 280 }}
         />
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {anyNew && (
+            <Button variant="secondary" onClick={clearNewTags} style={{ fontSize: 13, padding: "8px 14px" }}>
+              Clear "New" tags
+            </Button>
+          )}
           <Button variant="secondary" onClick={importFromOrders} style={{ fontSize: 13, padding: "8px 14px" }}>
             Import from Orders
           </Button>
@@ -2770,6 +2809,21 @@ function AddressBookTab({ config, saveConfig, orders }) {
           </Button>
         </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: THEME.surfaceRaised, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: "8px 14px", marginBottom: 12 }}>
+          <span style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paper }}>{selectedIds.size} selected</span>
+          <Button variant="danger" onClick={() => setConfirmDeleteIds([...selectedIds])} style={{ fontSize: 12, padding: "5px 10px" }}>
+            Delete Selected
+          </Button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div style={{ fontFamily: FONT_SANS, color: THEME.paperFaint, fontSize: 14, padding: "40px 0", textAlign: "center" }}>
@@ -2780,28 +2834,85 @@ function AddressBookTab({ config, saveConfig, orders }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT_SANS, fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${THEME.borderStrong}` }}>
+                <th style={{ textAlign: "left", padding: "8px 10px" }}>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 {["Name", "Phone", "Address", ""].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: THEME.paperFaint, fontWeight: 600 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e, idx) => (
-                <tr key={e.id} style={{ background: idx % 2 === 0 ? THEME.surface : "transparent", borderBottom: `1px solid ${THEME.border}` }}>
-                  <td style={{ padding: "8px 10px" }}>
-                    <input value={e.name} onChange={(ev) => updateEntry(e.id, "name", ev.target.value)} style={{ ...inputStyle, border: "none", background: "transparent", padding: "4px 6px" }} />
-                  </td>
-                  <td style={{ padding: "8px 10px" }}>
-                    <input value={e.phone} onChange={(ev) => updateEntry(e.id, "phone", ev.target.value)} style={{ ...inputStyle, border: "none", background: "transparent", padding: "4px 6px" }} />
-                  </td>
-                  <td style={{ padding: "8px 10px" }}>
-                    <input value={e.address} onChange={(ev) => updateEntry(e.id, "address", ev.target.value)} style={{ ...inputStyle, border: "none", background: "transparent", padding: "4px 6px" }} />
-                  </td>
-                  <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                    <button onClick={() => setConfirmDeleteId(e.id)} style={{ background: "none", border: "none", color: THEME.danger, cursor: "pointer", fontSize: 16, padding: 0 }}>&times;</button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((e, idx) => {
+                const isEditing = editingId === e.id;
+                return (
+                  <tr key={e.id} style={{ background: idx % 2 === 0 ? THEME.surface : "transparent", borderBottom: `1px solid ${THEME.border}` }}>
+                    <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                      <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} />
+                    </td>
+                    <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                      {isEditing ? (
+                        <input value={editDraft.name} onChange={(ev) => setEditDraft({ ...editDraft, name: ev.target.value })} style={{ ...inputStyle, padding: "4px 6px" }} />
+                      ) : (
+                        <span>
+                          {e.name}
+                          {e.isNew && (
+                            <span style={{ marginLeft: 6, fontFamily: FONT_SANS, fontSize: 10, fontWeight: 600, color: THEME.greenText, background: THEME.greenBg, padding: "2px 6px", borderRadius: 6 }}>
+                              NEW
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                      {isEditing ? (
+                        <input value={editDraft.phone} onChange={(ev) => setEditDraft({ ...editDraft, phone: ev.target.value })} style={{ ...inputStyle, padding: "4px 6px" }} />
+                      ) : (
+                        e.phone
+                      )}
+                    </td>
+                    <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                      {isEditing ? (
+                        <input value={editDraft.address} onChange={(ev) => setEditDraft({ ...editDraft, address: ev.target.value })} style={{ ...inputStyle, padding: "4px 6px" }} />
+                      ) : (
+                        e.address
+                      )}
+                    </td>
+                    <td style={{ padding: "8px 10px", textAlign: "right", verticalAlign: "top", whiteSpace: "nowrap" }}>
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={saveEdit}
+                            style={{ background: "none", border: "none", color: THEME.greenText, fontFamily: FONT_SANS, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer", padding: 0, marginRight: 10 }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelEdit}
+                            style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => startEdit(e)}
+                            style={{ background: "none", border: "none", color: THEME.paperMuted, fontFamily: FONT_SANS, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0, marginRight: 10 }}
+                          >
+                            Edit
+                          </button>
+                          <button onClick={() => setConfirmDeleteIds([e.id])} style={{ background: "none", border: "none", color: THEME.danger, cursor: "pointer", fontSize: 16, padding: 0 }}>&times;</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2832,20 +2943,22 @@ function AddressBookTab({ config, saveConfig, orders }) {
         </>
       )}
 
-      {confirmDeleteId && (
+      {confirmDeleteIds.length > 0 && (
         <>
-          <div onClick={() => setConfirmDeleteId(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div onClick={() => setConfirmDeleteIds([])} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
           <div style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
             background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
           }}>
-            <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 10 }}>Remove this customer?</div>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 10 }}>
+              {confirmDeleteIds.length === 1 ? "Remove this customer?" : `Remove ${confirmDeleteIds.length} customers?`}
+            </div>
             <div style={{ fontFamily: FONT_SANS, fontSize: 14, color: THEME.paperMuted, marginBottom: 18 }}>
               This only removes them from your address book &mdash; it doesn't affect any of their past orders.
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
-              <Button variant="danger" onClick={() => removeEntry(confirmDeleteId)}>Remove</Button>
+              <Button variant="secondary" onClick={() => setConfirmDeleteIds([])}>Cancel</Button>
+              <Button variant="danger" onClick={() => removeEntries(confirmDeleteIds)}>Remove</Button>
             </div>
           </div>
         </>
