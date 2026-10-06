@@ -2694,6 +2694,166 @@ function SettingsTab({ config, saveConfig, setActiveFolderId, goCustomer }) {
   );
 }
 
+function AddressBookTab({ config, saveConfig, orders }) {
+  const [local, setLocal] = useState(config.addressBook || []);
+  const [searchText, setSearchText] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const timer = useRef(null);
+
+  useEffect(() => setLocal(config.addressBook || []), [config.addressBook]);
+
+  const commit = (next) => {
+    setLocal(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => saveConfig({ ...config, addressBook: next }), 500);
+  };
+
+  const updateEntry = (id, field, value) => {
+    commit(local.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
+  };
+
+  const removeEntry = (id) => {
+    commit(local.filter((e) => e.id !== id));
+    setConfirmDeleteId(null);
+  };
+
+  const addEntry = () => {
+    if (!newName.trim()) return;
+    commit([...local, { id: uid(), name: newName.trim(), phone: newPhone.trim(), address: newAddress.trim() }]);
+    setNewName("");
+    setNewPhone("");
+    setNewAddress("");
+    setShowAddModal(false);
+  };
+
+  const importFromOrders = () => {
+    const existingPhones = new Set(local.map((e) => normalizePhone(e.phone)));
+    const seen = new Set();
+    const imported = [];
+    orders.forEach((o) => {
+      const key = normalizePhone(o.phone);
+      if (!key || existingPhones.has(key) || seen.has(key)) return;
+      seen.add(key);
+      imported.push({ id: uid(), name: o.customerName, phone: o.phone, address: o.address || "" });
+    });
+    if (imported.length === 0) return;
+    commit([...local, ...imported]);
+  };
+
+  const filtered = local
+    .filter((e) => {
+      const q = searchText.trim().toLowerCase();
+      if (!q) return true;
+      return (e.name || "").toLowerCase().includes(q) || (e.phone || "").includes(q) || (e.address || "").toLowerCase().includes(q);
+    })
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <input
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          placeholder="Search by name, phone, or address"
+          style={{ ...inputStyle, maxWidth: 280 }}
+        />
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={importFromOrders} style={{ fontSize: 13, padding: "8px 14px" }}>
+            Import from Orders
+          </Button>
+          <Button onClick={() => setShowAddModal(true)} style={{ fontSize: 13, padding: "8px 14px" }}>
+            + Add Customer
+          </Button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ fontFamily: FONT_SANS, color: THEME.paperFaint, fontSize: 14, padding: "40px 0", textAlign: "center" }}>
+          {local.length === 0 ? "No customers saved yet. Add one, or import from your order history." : "No matches found."}
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: FONT_SANS, fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: `2px solid ${THEME.borderStrong}` }}>
+                {["Name", "Phone", "Address", ""].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: THEME.paperFaint, fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((e, idx) => (
+                <tr key={e.id} style={{ background: idx % 2 === 0 ? THEME.surface : "transparent", borderBottom: `1px solid ${THEME.border}` }}>
+                  <td style={{ padding: "8px 10px" }}>
+                    <input value={e.name} onChange={(ev) => updateEntry(e.id, "name", ev.target.value)} style={{ ...inputStyle, border: "none", background: "transparent", padding: "4px 6px" }} />
+                  </td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <input value={e.phone} onChange={(ev) => updateEntry(e.id, "phone", ev.target.value)} style={{ ...inputStyle, border: "none", background: "transparent", padding: "4px 6px" }} />
+                  </td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <input value={e.address} onChange={(ev) => updateEntry(e.id, "address", ev.target.value)} style={{ ...inputStyle, border: "none", background: "transparent", padding: "4px 6px" }} />
+                  </td>
+                  <td style={{ padding: "8px 10px", textAlign: "right" }}>
+                    <button onClick={() => setConfirmDeleteId(e.id)} style={{ background: "none", border: "none", color: THEME.danger, cursor: "pointer", fontSize: 16, padding: 0 }}>&times;</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showAddModal && (
+        <>
+          <div onClick={() => setShowAddModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
+            background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
+          }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 14 }}>Add Customer</div>
+            <Field label="Name">
+              <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="Phone">
+              <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="Address">
+              <input value={newAddress} onChange={(e) => setNewAddress(e.target.value)} style={inputStyle} />
+            </Field>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
+              <Button variant="secondary" onClick={() => setShowAddModal(false)}>Cancel</Button>
+              <Button onClick={addEntry}>Add</Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {confirmDeleteId && (
+        <>
+          <div onClick={() => setConfirmDeleteId(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1998 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(92vw, 360px)",
+            background: THEME.surface, borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", zIndex: 1999, padding: 22,
+          }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 18, color: THEME.paper, marginBottom: 10 }}>Remove this customer?</div>
+            <div style={{ fontFamily: FONT_SANS, fontSize: 14, color: THEME.paperMuted, marginBottom: 18 }}>
+              This only removes them from your address book &mdash; it doesn't affect any of their past orders.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+              <Button variant="danger" onClick={() => removeEntry(confirmDeleteId)}>Remove</Button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function FamilyView({ config, orders, saveConfig, saveOrders, goHome, goMenu, goCustomer, setActiveFolderId }) {
   const [tab, setTab] = useState("orders");
   const newCount = orders.filter((o) => o.status === "new").length;
@@ -2701,11 +2861,12 @@ function FamilyView({ config, orders, saveConfig, saveOrders, goHome, goMenu, go
   const tabs = [
     { id: "orders", label: "Orders", badge: newCount },
     { id: "inventory", label: "Inventory" },
+    { id: "addressBook", label: "Address Book" },
     { id: "settings", label: "Settings" },
   ];
 
   return (
-    <div style={{ maxWidth: tab === "orders" ? 960 : 640, margin: "0 auto", padding: "32px 20px 80px" }}>
+    <div style={{ maxWidth: tab === "orders" || tab === "addressBook" ? 960 : 640, margin: "0 auto", padding: "32px 20px 80px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper }}>Family dashboard</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2747,6 +2908,7 @@ function FamilyView({ config, orders, saveConfig, saveOrders, goHome, goMenu, go
 
       {tab === "orders" && <OrdersTab orders={orders} saveOrders={saveOrders} config={config} saveConfig={saveConfig} />}
       {tab === "inventory" && <InventoryTab config={config} saveConfig={saveConfig} />}
+      {tab === "addressBook" && <AddressBookTab config={config} saveConfig={saveConfig} orders={orders} />}
       {tab === "settings" && <SettingsTab config={config} saveConfig={saveConfig} setActiveFolderId={setActiveFolderId} goCustomer={goCustomer} />}
     </div>
   );
