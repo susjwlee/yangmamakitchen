@@ -2009,6 +2009,16 @@ function InventoryTab({ config, saveConfig }) {
     commit(local, folders.map((f) => (f.id === folderId ? { ...f, published: !f.published } : f)));
   };
 
+  const duplicateFolder = (folderId) => {
+    const original = folders.find((f) => f.id === folderId);
+    if (!original) return;
+    // Copy every setting (dates, limits, items, banner image, etc.) as-is,
+    // but give it a fresh id and start it as an unpublished draft so it
+    // never accidentally goes live before you've had a chance to review it.
+    const copy = { ...original, id: uid(), title: `${original.title} (Copy)`, published: false };
+    commit(local, [...folders, copy]);
+  };
+
   const toggleFolderMembership = (productId, folderId) => {
     const nextFolders = folders.map((f) => {
       if (f.id !== folderId) return f;
@@ -2319,6 +2329,9 @@ function InventoryTab({ config, saveConfig }) {
                 style={{ fontSize: 12, padding: "6px 10px", whiteSpace: "nowrap" }}
               >
                 {folder.published ? "Unpublish" : "Publish"}
+              </Button>
+              <Button variant="secondary" onClick={() => duplicateFolder(folder.id)} style={{ fontSize: 12, padding: "6px 10px", whiteSpace: "nowrap" }}>
+                Duplicate
               </Button>
               <Button variant="danger" onClick={() => setConfirmRemoveFolderId(folder.id)} style={{ fontSize: 12, padding: "6px 10px", whiteSpace: "nowrap" }}>
                 Delete Menu
