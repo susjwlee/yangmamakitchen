@@ -469,6 +469,9 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
     };
   });
   const [usedSavedInfo, setUsedSavedInfo] = useState(() => !!loadSavedCustomerInfo());
+  const [customerType, setCustomerType] = useState(null); // null | "new" | "returning" — only asked when this device has no saved info already
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupStatus, setLookupStatus] = useState(null); // null | "found" | "not-found"
   const [formErrors, setFormErrors] = useState({});
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [otherAvailability, setOtherAvailability] = useState(false);
@@ -498,6 +501,18 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
   const itemCount = cartItems.reduce((sum, i) => sum + i.qty, 0);
 
   const setQty = (id, qty) => setCart((c) => ({ ...c, [id]: qty }));
+
+  const lookupReturningCustomer = () => {
+    const key = normalizePhone(lookupPhone);
+    if (!key) return;
+    const match = (config.addressBook || []).find((e) => normalizePhone(e.phone) === key);
+    if (match) {
+      setForm({ ...form, name: match.name || "", phone: match.phone || lookupPhone, address: match.address || "" });
+      setLookupStatus("found");
+    } else {
+      setLookupStatus("not-found");
+    }
+  };
 
   const validate = () => {
     const errs = {};
@@ -624,7 +639,57 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
           </div>
         </div>
 
+        {!usedSavedInfo && !customerType && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper, marginBottom: 12 }}>Have you ordered from us before?</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button onClick={() => setCustomerType("returning")} style={{ flex: 1 }}>Returning Customer</Button>
+              <Button variant="secondary" onClick={() => setCustomerType("new")} style={{ flex: 1 }}>New Customer</Button>
+            </div>
+          </div>
+        )}
+
+        {!usedSavedInfo && customerType === "returning" && lookupStatus !== "found" && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper, marginBottom: 12 }}>Welcome back!</div>
+            <Field label="Phone number">
+              <input
+                value={lookupPhone}
+                onChange={(e) => { setLookupPhone(formatPhoneInput(e.target.value)); setLookupStatus(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") lookupReturningCustomer(); }}
+                placeholder="(555)-(555)-(0123)"
+                style={inputStyle}
+              />
+            </Field>
+            <Button onClick={lookupReturningCustomer} style={{ width: "100%", marginBottom: 10 }}>Find My Info</Button>
+            {lookupStatus === "not-found" && (
+              <div style={{ fontFamily: FONT_SANS, fontSize: 13, color: THEME.paperMuted, marginBottom: 10 }}>
+                We couldn't find that number.{" "}
+                <button
+                  onClick={() => setCustomerType("new")}
+                  style={{ background: "none", border: "none", color: THEME.paperMuted, textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}
+                >
+                  Continue as a new customer
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => { setCustomerType(null); setLookupStatus(null); setLookupPhone(""); }}
+              style={{ background: "none", border: "none", color: THEME.paperFaint, fontFamily: FONT_SANS, fontSize: 12, cursor: "pointer", padding: 0 }}
+            >
+              &larr; Back
+            </button>
+          </div>
+        )}
+
+        {(usedSavedInfo || customerType === "new" || lookupStatus === "found") && (
+        <>
         <div style={{ fontFamily: FONT_VOICE, fontSize: 24, color: THEME.paper, marginBottom: 4 }}>Your details</div>
+        {lookupStatus === "found" && (
+          <div style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperMuted, marginBottom: 16 }}>
+            Welcome back{form.name ? `, ${form.name}` : ""}! We've filled this in from our records &mdash; feel free to update it.
+          </div>
+        )}
         {usedSavedInfo && (
           <div style={{ fontFamily: FONT_SANS, fontSize: 12, color: THEME.paperMuted, marginBottom: 16 }}>
             We've filled this in from your last order on this device &mdash; feel free to update it.{" "}
@@ -762,6 +827,8 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
         <Button onClick={submitOrder} disabled={isSubmitting} style={{ width: "100%" }}>
           {isSubmitting ? "Placing order\u2026" : "Place order"}
         </Button>
+        </>
+        )}
       </div>
     );
   }
