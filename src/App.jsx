@@ -218,6 +218,39 @@ function formatPhoneInput(value) {
   return "";
 }
 
+// Phone inputs auto-format as you type (adding parens/dashes), which means
+// the cursor often lands right next to a formatting character rather than
+// a digit. A plain Backspace there would just delete that formatting
+// character — which then gets silently re-added once the value reformats,
+// making backspace look like it's doing nothing. This finds the nearest
+// actual digit behind the cursor and removes that instead, then puts the
+// cursor back in the right spot.
+function handlePhoneBackspace(e, onFormatted) {
+  if (e.key !== "Backspace") return;
+  const input = e.target;
+  if (input.selectionStart !== input.selectionEnd) return; // a real range is selected — let the browser handle it normally
+  const pos = input.selectionStart;
+  if (pos === 0) return;
+  const rawValue = input.value;
+  let i = pos - 1;
+  while (i >= 0 && !/\d/.test(rawValue[i])) i--;
+  if (i < 0) return;
+  e.preventDefault();
+  const digitsBefore = normalizePhone(rawValue.slice(0, i));
+  const digitsAfter = normalizePhone(rawValue.slice(i + 1));
+  const newFormatted = formatPhoneInput(digitsBefore + digitsAfter);
+  onFormatted(newFormatted);
+  requestAnimationFrame(() => {
+    let formattedPos = 0;
+    let digitsSeen = 0;
+    while (formattedPos < newFormatted.length && digitsSeen < digitsBefore.length) {
+      if (/\d/.test(newFormatted[formattedPos])) digitsSeen++;
+      formattedPos++;
+    }
+    input.setSelectionRange(formattedPos, formattedPos);
+  });
+}
+
 function toE164(phone) {
   const digits = normalizePhone(phone);
   if (!digits) return "";
@@ -656,7 +689,10 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
               <input
                 value={lookupPhone}
                 onChange={(e) => { setLookupPhone(formatPhoneInput(e.target.value)); setLookupStatus(null); }}
-                onKeyDown={(e) => { if (e.key === "Enter") lookupReturningCustomer(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") lookupReturningCustomer();
+                  handlePhoneBackspace(e, (v) => { setLookupPhone(v); setLookupStatus(null); });
+                }}
                 placeholder="(555)-(555)-(0123)"
                 style={inputStyle}
               />
@@ -711,7 +747,13 @@ function CustomerView({ config, orders, saveConfig, saveOrders, goFamily, goMenu
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" style={inputStyle} />
         </Field>
         <Field label="Phone" error={formErrors.phone}>
-          <input value={form.phone} onChange={(e) => setForm({ ...form, phone: formatPhoneInput(e.target.value) })} placeholder="(555)-(555)-(0123)" style={inputStyle} />
+          <input
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: formatPhoneInput(e.target.value) })}
+            onKeyDown={(e) => handlePhoneBackspace(e, (v) => setForm((f) => ({ ...f, phone: v })))}
+            placeholder="(555)-(555)-(0123)"
+            style={inputStyle}
+          />
         </Field>
         <Field label="Payment timing" error={formErrors.paymentTiming}>
           <select value={form.paymentTiming} onChange={(e) => setForm({ ...form, paymentTiming: e.target.value })} style={inputStyle}>
